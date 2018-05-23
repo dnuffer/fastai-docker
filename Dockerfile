@@ -1,3 +1,6 @@
+# to mount the fastai directory from locally for persistence, use the following docker run command:
+# docker run --runtime=nvidia -it -p8888:8888 -v ~/src/fastai:/home/fastai/fastai -u $(id -u):$(id -g) fastai
+
 FROM nvidia/cuda:9.2-cudnn7-devel-ubuntu16.04
 
 LABEL com.nvidia.volumes.needed="nvidia_driver"
@@ -29,12 +32,13 @@ RUN curl -o ~/miniconda.sh -O  https://repo.continuum.io/miniconda/Miniconda3-la
     /opt/conda/bin/conda install conda-build
 
 
-#VOLUME ["/notebooks", "/data"]
+RUN useradd -m -s /bin/bash -u 1000 fastai
+USER fastai
 
-WORKDIR /notebooks
+WORKDIR /home/fastai
 
-RUN git clone https://github.com/fastai/fastai.git .
-RUN ls && /opt/conda/bin/conda env create
+RUN git clone https://github.com/fastai/fastai.git
+RUN cd fastai && /opt/conda/bin/conda env create
 RUN /opt/conda/bin/conda clean -ya
 
 ENV PATH /opt/conda/envs/fastai/bin:$PATH
@@ -45,15 +49,20 @@ CMD source activate fastai
 CMD source ~/.bashrc
 
 
-WORKDIR /data
-RUN ln -s /data/ /notebooks/courses/dl1/
-RUN ln -s /data/ /notebooks/courses/dl2/
+RUN mkdir /home/fastai/data
+WORKDIR /home/fastai/data
+RUN ln -s /home/fastai/data/ /home/fastai/fastai/courses/dl1/
+RUN ln -s /home/fastai/data/ /home/fastai/fastai/courses/dl2/
+USER root
+RUN ln -s /home/fastai/data /
+USER fastai
 
 RUN curl http://files.fast.ai/data/dogscats.zip --output dogscats.zip
 RUN unzip -d . dogscats.zip
 RUN rm dogscats.zip
 
-WORKDIR /data/pascal
+RUN mkdir /home/fastai/data/pascal
+WORKDIR /home/fastai/data/pascal
 RUN curl -OL http://pjreddie.com/media/files/VOCtrainval_06-Nov-2007.tar
 RUN curl -OL https://storage.googleapis.com/coco-dataset/external/PASCAL_VOC.zip
 RUN tar -xf VOCtrainval_06-Nov-2007.tar
@@ -61,14 +70,15 @@ RUN unzip PASCAL_VOC.zip
 RUN mv PASCAL_VOC/*.json .
 RUN rmdir PASCAL_VOC
 
-RUN ls -la /notebooks/courses/dl1/data/
-
-RUN chmod -R a+w /notebooks
+RUN ls -la /home/fastai/fastai/courses/dl1/data/
 
 ENV PATH /opt/conda/bin:$PATH
-WORKDIR /notebooks
+WORKDIR /home/fastai/fastai
 
-ENV PATH /opt/conda/envs/fastai/bin:$PATH
+ENV PATH /home/fastai/.conda/envs/fastai/bin:$PATH
+ENV CONDA_PREFIX /home/fastai/.conda/envs/fastai
+ENV CONDA_EXE /opt/conda/bin/conda
+ENV CONDA_PYTHON_EXE /opt/conda/bin/python
+ENV CONDA_DEFAULT_ENV fastai
 
-#CMD ["jupyter", "lab", "--ip=0.0.0.0", "--no-browser", "--allow-root"]
-CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--no-browser", "--allow-root"]
+CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--no-browser"]
